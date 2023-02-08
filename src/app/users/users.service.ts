@@ -2,88 +2,87 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUser } from './aggregates/create-user';
 import { UpdateUser } from './aggregates/update-user';
-import { User } from './aggregates/user';
-
-export interface IUsersService {
-    getAll(): Promise<User[]>
-    findFirstByUsername(username: string): Promise<User>
-    findFirstOrThrow(id: string): Promise<User>
-    create(user: CreateUser): Promise<User>
-    update(id: string, user: UpdateUser): Promise<User>
-    delete(id: string): Promise<boolean>
-    deleteMany(ids: string[]): Promise<boolean>
-}
+import { hash } from "bcrypt";
 
 @Injectable()
-export class UsersService implements IUsersService {
+export class UsersService {
     constructor(
         private readonly prismaService: PrismaService
     ) { }
 
-    async getAll(): Promise<User[]> {
-        const users = await this.prismaService.users.findMany();
-        return users.map(user => new User(user.id, user.username));
+    async getAll() {
+        return await this.prismaService.users.findMany({
+            select: {
+                id: true,
+                username: true,
+                createdAt: true,
+                updatedAt: true,
+            }
+        });
     }
 
-    async findFirstByUsername(username: string): Promise<User> {
-        const user = await this.prismaService.users.findFirst({
+    async findFirstOrThrowByUsername(username: string) {
+        return await this.prismaService.users.findFirstOrThrow({
             where: { username }
         });
-
-        if(user){
-            return new User(user.id, user.username);
-        }
-
-        return null;
     }
 
-    async findFirstOrThrow(id: string): Promise<User> {
-        const user = await this.prismaService.users.findFirstOrThrow({
+    async findFirstOrThrowByIdentifier(id: string) {
+        return await this.prismaService.users.findFirstOrThrow({
             where: { id }
         });
-
-        return new User(user.id, user.password);
     }
 
-    async create(user: CreateUser): Promise<User> {
-        const savedUser = await this.findFirstByUsername(user.username);
+    async create(user: CreateUser) {
+        const savedUser = await this.findFirstOrThrowByUsername(user.username);
 
-        if(savedUser){
+        if (savedUser) {
             throw new Error("Invalid username or password");
         }
 
-        const createdUser = await this.prismaService.users.create({
+        const hashPassword = await hash(user.password, 10);
+        return await this.prismaService.users.create({
             data: {
                 username: user.username,
-                password: user.password,
+                password: hashPassword,
+            },
+            select: {
+                id: true,
+                username: true,
+                createdAt: true,
+                updatedAt: true,
             }
         });
-
-        return new User(createdUser.id, createdUser.username);
     }
 
-    async update(id: string, user: UpdateUser): Promise<User> {
-        const updatedUser = await this.prismaService.users.update({
+    async update(id: string, user: UpdateUser) {
+        const hashPassword = await hash(user.password, 10);
+        return await this.prismaService.users.update({
             where: { id },
             data: {
-                password: user.password,
                 username: user.username,
+                password: hashPassword,
+                updatedAt: new Date(),
+            },
+            select: {
+                id: true,
+                username: true,
+                createdAt: true,
+                updatedAt: true,
             }
         });
-
-        return new User(updatedUser.id, updatedUser.username);
     }
 
-    async delete(id: string): Promise<boolean> {
+    async delete(id: string) {
         await this.prismaService.users.delete({
             where: { id }
         });
         return true;
     }
 
-    async deleteMany(ids: string[]): Promise<boolean> {
+    async deleteMany(ids: string[]) {
         await this.prismaService.users.deleteMany({
-            where: { id: { in: ids }}
+            where: { id: { in: ids } }
         });
         return true;
     }

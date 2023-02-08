@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, ParseUUIDPipe, InternalServerErrorException, HttpStatus, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { CreateUser } from './aggregates/create-user';
 import { UpdateUser } from './aggregates/update-user';
 import { UsersService } from './users.service';
 
 @Controller('users')
+@UseGuards(AuthGuard('jwt'))
 export class UsersController {
     constructor(
         private readonly usersService: UsersService
@@ -16,16 +18,37 @@ export class UsersController {
 
     @Post()
     async create(@Body() user: CreateUser) {
-        return this.usersService.create(user);
+        try {
+            return this.usersService.create(user);
+        } catch (error) {
+            throw new InternalServerErrorException({
+                status: HttpStatus.FORBIDDEN,
+                error: error.message,
+            }, { cause: error });
+        }
     }
 
     @Put(":id")
     async update(@Param("id", new ParseUUIDPipe()) id: string, @Body() user: UpdateUser) {
-        return this.usersService.update(id, user);
+        try {
+            return this.usersService.update(id, user);
+        } catch (error) {
+            throw new InternalServerErrorException({
+                status: HttpStatus.FORBIDDEN,
+                error: error.message,
+            }, { cause: error });
+        }
     }
 
     @Delete(":id")
     async delete(@Param("id", new ParseUUIDPipe()) id: string) {
-        return this.usersService.delete(id);
+        try {
+            return this.usersService.delete(id);
+        } catch (error) {
+            throw new InternalServerErrorException({
+                status: HttpStatus.FORBIDDEN,
+                error: error.message,
+            }, { cause: error });
+        }
     }
 }

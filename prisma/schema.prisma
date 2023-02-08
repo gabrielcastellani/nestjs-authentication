@@ -14,4 +14,6 @@ model Users {
   id       String @id @default(uuid())
   username String
   password String
+  createdAt DateTime @default(now())
+  updatedAt DateTime?
 }
